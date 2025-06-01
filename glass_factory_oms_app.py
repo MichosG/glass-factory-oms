@@ -106,8 +106,15 @@ def main_app(user_role):
     if user_role in ["admin", "manager"]:
         st.subheader("📈 Summary Analytics")
         if not st.session_state.orders.empty:
-            fig = px.histogram(st.session_state.orders, x="Customer Name", title="Orders per Customer")
-            st.plotly_chart(fig, use_container_width=True)
+if not st.session_state.orders.empty and "Customer Name" in st.session_state.orders.columns:
+    fig = px.histogram(
+        st.session_state.orders,
+        x="Customer Name",
+        title="Orders per Customer"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No data available yet to display charts.")
 
 # Start the app
 user = authenticate_user()
