@@ -17,16 +17,26 @@ ORDER_PREFIXES = {
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("ALTER TABLE orders ADD COLUMN advance REAL") if "advance" not in [col[1] for col in cur.execute("PRAGMA table_info(orders)")] else None
-    cur.execute("ALTER TABLE orders ADD COLUMN balance REAL") if "balance" not in [col[1] for col in cur.execute("PRAGMA table_info(orders)")] else None
+    cur.execute("""CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT,
+        customer TEXT,
+        phone TEXT,
+        address TEXT,
+        product_type TEXT,
+        glass_type TEXT,
+        processing TEXT,
+        dimensions TEXT,
+        quantity INTEGER,
+        price REAL,
+        status TEXT,
+        deadline TEXT,
+        order_date TEXT,
+        advance REAL,
+        balance REAL
+    )""")
     conn.commit()
     conn.close()
-
-def get_suppliers():
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query("SELECT * FROM suppliers", conn)
-    conn.close()
-    return df
 
 def fetch_orders():
     conn = sqlite3.connect(DB_FILE)
@@ -44,7 +54,7 @@ orders_df = fetch_orders()
 
 if not orders_df.empty:
     orders_df["advance"] = orders_df["advance"].fillna(0.0)
-    orders_df["balance"] = orders_df["balance"].fillna(orders_df["price"] - orders_df["advance"])
+    orders_df["balance"] = orders_df["price"] - orders_df["advance"]
     st.dataframe(orders_df[["order_id", "customer", "price", "advance", "balance"]])
 
     csv = orders_df.to_csv(index=False).encode("utf-8")
