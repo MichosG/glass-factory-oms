@@ -1,66 +1,87 @@
 
 import streamlit as st
 import sqlite3
-from datetime import datetime
 import pandas as pd
+
+st.set_page_config(page_title="Glass Factory OMS - Phase 5", layout="wide")
 
 DB_FILE = "orders.db"
 
-ORDER_PREFIXES = {
-    "M": "Μεταφορά",
-    "T": "Τοποθέτηση",
-    "Π": "Παραλαβή",
-    "Κ": "Κατάστημα",
-    "A": "Συνεργάτης"
-}
-
+# Initialize DB
 def init_db():
     conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-    cur.execute("""CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id TEXT,
-        customer TEXT,
-        phone TEXT,
-        address TEXT,
-        product_type TEXT,
-        glass_type TEXT,
-        processing TEXT,
-        dimensions TEXT,
-        quantity INTEGER,
-        price REAL,
-        status TEXT,
-        deadline TEXT,
-        order_date TEXT,
-        advance REAL,
-        balance REAL
-    )""")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prefix TEXT,
+            customer TEXT,
+            phone TEXT,
+            address TEXT,
+            category TEXT,
+            product_desc TEXT,
+            dimensions TEXT,
+            quantity INTEGER,
+            price REAL,
+            supplier TEXT,
+            status TEXT,
+            delivery_date TEXT,
+            deposit REAL
+        )
+    """)
     conn.commit()
     conn.close()
 
-def fetch_orders():
+def add_order(data):
     conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query("SELECT * FROM orders ORDER BY id DESC", conn)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO orders (
+            prefix, customer, phone, address, category, product_desc,
+            dimensions, quantity, price, supplier, status, delivery_date, deposit
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, data)
+    conn.commit()
+    conn.close()
+
+def view_orders():
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM orders", conn)
     conn.close()
     return df
 
-st.set_page_config(page_title="Φάση 4 - Οικονομικά", layout="wide")
-st.title("💶 Εργοστάσιο Υαλοπινάκων — Φάση 4: Οικονομικά")
-
 init_db()
 
-st.subheader("📋 Παραγγελίες με Οικονομικά Στοιχεία")
-orders_df = fetch_orders()
+st.title("📋 Εργοστάσιο Υαλοπινάκων – Φάση 5")
 
-if not orders_df.empty:
-    orders_df["advance"] = orders_df["advance"].fillna(0.0)
-    orders_df["balance"] = orders_df["price"] - orders_df["advance"]
-    st.dataframe(orders_df[["order_id", "customer", "price", "advance", "balance"]])
+st.subheader("➕ Δημιουργία Νέας Παραγγελίας")
+with st.form("order_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        prefix = st.selectbox("Τύπος Παραγγελίας", ["M", "T", "Π", "K", "A"])
+        customer = st.text_input("Όνομα Πελάτη")
+        phone = st.text_input("Τηλέφωνο")
+        address = st.text_input("Διεύθυνση")
+        category = st.selectbox("Κατηγορία Προϊόντος", ["Glass", "Aluminium", "PVC", "Door"])
+        supplier = st.text_input("Προμηθευτής")
+    with col2:
+        product_desc = st.text_area("Περιγραφή Προϊόντος")
+        dimensions = st.text_input("Διαστάσεις")
+        quantity = st.number_input("Ποσότητα", min_value=1)
+        price = st.number_input("Τιμή (€)", min_value=0.0)
+        status = st.selectbox("Κατάσταση", ["Νέα", "Σε εξέλιξη", "Ολοκληρωμένη"])
+        delivery_date = st.date_input("Ημερομηνία Παράδοσης")
+        deposit = st.number_input("Προκαταβολή (€)", min_value=0.0)
 
-    csv = orders_df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Εξαγωγή CSV", data=csv, file_name="paraggelies_oikonomika.csv", mime="text/csv")
+    submitted = st.form_submit_button("Καταχώρηση")
+    if submitted:
+        add_order((
+            prefix, customer, phone, address, category, product_desc,
+            dimensions, quantity, price, supplier, status,
+            str(delivery_date), deposit
+        ))
+        st.success("✅ Παραγγελία καταχωρήθηκε.")
 
-    total_balance = orders_df["balance"].sum()
-    st.markdown(f"### 💰 Συνολικό Υπόλοιπο: **{total_balance:.2f} €**")
-else:
-    st.info("Δεν υπάρχουν παραγγελίες.")
+st.subheader("📄 Προβολή Παραγγελιών")
+orders_df = view_orders()
+st.dataframe(orders_df)
